@@ -66,7 +66,6 @@ for imNo = Params.fileIndices
     Ims = findLcdValues(Params, Ims);
     
     writeLcd2tiff(Ims.lcdLinear, Params.outFolder, Ims.fileName);
-    
     writeLed2csv(Ims.ledVals, Params.outFolder, Ims.fileName);
 
     % Find the reconstructed HDR image

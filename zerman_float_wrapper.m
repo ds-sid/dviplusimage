@@ -648,31 +648,15 @@ function Ims = findLedValues(Params, Ims)
     % Find LED values after iteration
     tempVec = findledvals(ledsNew./Params.LED_MAX_LUM, Params.ledLabelsSm);
     ledsValsNew = ceil(tempVec(:,2).*255)./255;
-    
-    %% Check Power Constraint
-    % Assume each LED consumes 1.4 Watts of power. Although the presentation
-    % mentions 1500W power supply, undercalculate the power to be on the safe
-    % side always.
-    totalPower = sum(ledsValsNew*1.44);
-    if(totalPower > 1400)
-        disp('-!-Maximum power has been reached. LED values will be revised...');
-        scalingFactor = totalPower/1400;
-        
-        % If maximum power is reached, scale it down
-        ledsValsNewPow = ledsValsNew/scalingFactor;
-        ledsValsNewPow = ceil(ledsValsNewPow.*255)./255;
-    else
-        ledsValsNewPow = ledsValsNew;
-    end
 
     % Replace the LED values after scaling, and find the backlight
     % luminance
-    ledsValsNewIm = placeleds(ledsValsNewPow, [1080 1920], Params.ledIndices);
+    ledsValsNewIm = placeleds(ledsValsNew, [1080 1920], Params.ledIndices);
     baseLum = conv2(ledsValsNewIm.*Params.LED_MAX_LUM, Params.led_psf, 'same');
 
     % Pass values
     %Ims.ledLumPrevSm = ledLumNew;
-    Ims.ledVals = ledsValsNewPow;
+    Ims.ledVals = ledsValsNew;
     Ims.baseLum = baseLum;
 end
 

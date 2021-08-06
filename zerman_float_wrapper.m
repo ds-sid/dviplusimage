@@ -66,6 +66,7 @@ for imNo = Params.fileIndices
     Ims = findLcdValues(Params, Ims);
     
     writeLcd2tiff(Ims.lcdLinear, Params.outFolder, Ims.fileName);
+    
     writeLed2csv(Ims.ledVals, Params.outFolder, Ims.fileName);
 
     % Find the reconstructed HDR image
@@ -127,6 +128,7 @@ function Ims = readTifIm(imName, Params, Ims)
     [Ims.hdrIm, Ims.lastIm] = makeitfullhd(tif_img_data);
     
     hdrImL = Ims.hdrIm*Params.LUMINANCE_HDR_CONSTANT;
+%     hdrImL = Ims.hdrIm;
     hdrLum = max(hdrImL, [], 3);
     if max(max(hdrLum))>Params.MAX_LUMINANCE, 
         hdrLum(hdrLum>Params.MAX_LUMINANCE) = Params.MAX_LUMINANCE; 
@@ -639,6 +641,7 @@ function Ims = findLedValues(Params, Ims)
         % Find the luminance values wrt newly found LED values
         ledLumOld = ledLumNew;
         ledLumNew = conv2(ledsNew, Params.led_psfSm, 'same');
+%         figure; histogram(unique(ledsNew));
         iterNum = iterNum + 1;
     end
     
@@ -685,9 +688,9 @@ function Ims = findLcdValues(Params, Ims)
                     cat(3, Ims.lastIm(:,:,2)./Ims.baseLum,...
                            Ims.lastIm(:,:,3)./Ims.baseLum));
     elseif strcmp(Ims.fileXt,'.tif')
-        lcdLinear = cat(3, Ims.lastIm(:,:,1)./Ims.baseLum,... 
-                    cat(3, Ims.lastIm(:,:,2)./Ims.baseLum,...
-                           Ims.lastIm(:,:,3)./Ims.baseLum));
+        lcdLinear = cat(3, Params.LUMINANCE_HDR_CONSTANT*Ims.lastIm(:,:,1)./Ims.baseLum,... 
+                    cat(3, Params.LUMINANCE_HDR_CONSTANT*Ims.lastIm(:,:,2)./Ims.baseLum,...
+                           Params.LUMINANCE_HDR_CONSTANT*Ims.lastIm(:,:,3)./Ims.baseLum));
     end
     
     % Clip LCD values that exceed 1, and apply Gamma correction
@@ -882,7 +885,7 @@ end
 
 function writeLcd2tiff(lcdLinear, filepath, filename)
     lcdLinear = single(lcdLinear);
-    fullname = strcat(filepath, filename, '.tiff');
+    fullname = strcat(filepath, filename, '.LCD.tif');
 %     A = sort(single(randn(480,320, 3)),2);
     t = Tiff(fullname, 'w');
     tagstruct.ImageLength = size(lcdLinear, 1);
@@ -899,7 +902,7 @@ function writeLcd2tiff(lcdLinear, filepath, filename)
 end
 
 function writeLed2csv(Leds, filepath, filename)
-    fullname = strcat(filepath, filename, '.csv');
+    fullname = strcat(filepath, filename, '.backlight.csv');
     csvwrite(fullname, Leds);
 end
 

@@ -2,8 +2,8 @@ clear all
 addpath(genpath('D:\sidorchuk\YandexDisk\work\ld\HDR_Toolbox-master\source_code\'))
 addpath(genpath('D:\sidorchuk\YandexDisk\work\ld\dviplusimage-master'));
 hdr_filename = 'D:\sidorchuk\YandexDisk\work\ld\float_interface\Bottles_Small.hdr';
-tif_filename = 'D:\sidorchuk\YandexDisk\work\ld\float_interface\0-20.jpg.tif';
-outFolder = 'D:\sidorchuk\YandexDisk\work\ld\float_interface\';
+tif_filename = 'D:\sidorchuk\YandexDisk\work\ld\testdata\37142239013_4365fc67ea_k.png.tif';
+outFolder = 'D:\sidorchuk\YandexDisk\work\ld\zerman_test\';
 
 Params.outFolder = outFolder;
 Params.fileFolderName = hdr_filename;
@@ -72,6 +72,15 @@ for imNo = Params.fileIndices
     % Find the reconstructed HDR image
     [dvipHdr, ledLum3d] = dviplus2hdrim(round(255*Ims.ledVals)',...
                             uint8(Ims.lcdGamCorrdUint8), Params.led_psf);
+                        
+                        
+    [~, ~, ledIndices] = findledpositions(size(Ims.lcdLinear), 0);
+    tempIm = zeros(size(Ims.lcdLinear,1),size(Ims.lcdLinear,2));
+    tempIm(ledIndices) = Ims.ledVals;
+    ledLum = conv2(tempIm, Params.led_psf*180, 'same');
+    ledLum3d = repmat(ledLum,[1 1 3]);
+    lcdRatio = normim(Ims.lcdLinear, 1, 0.005);
+    hdrImDviP = ledLum3d.*lcdRatio;
     
 end
 
@@ -377,6 +386,8 @@ end
 
 function y = inpaintn(x,n,y0,m)
 
+    if nargin==0&&nargout==0, RunTheExample, return, end
+
     x = double(x);
     if nargin==1 || isempty(n), n = 100; end
 
@@ -448,6 +459,41 @@ function [z,s0] = InitialGuess(y,I)
         s0 = 6; % note: s = 10^s0
     end
 
+end
+
+%% Example (3-D)
+function RunTheExample
+          load wind
+          xmin = min(x(:)); xmax = max(x(:)); %#ok
+          zmin = min(z(:)); ymax = max(y(:)); %#ok
+          %-- wind velocity
+          vel0 = interp3(sqrt(u.^2+v.^2+w.^2),1,'cubic');
+          x = interp3(x,1); y = interp3(y,1); z = interp3(z,1);
+          %-- remove randomly 90% of the data
+          I = randperm(numel(vel0));
+          velNaN = vel0;
+          velNaN(I(1:round(numel(I)*.9))) = NaN;
+          %-- inpaint using INPAINTN
+          vel = inpaintn(velNaN);
+          %-- display the results
+          subplot(221), imagesc(velNaN(:,:,15)), axis equal off
+          title('Corrupt plane, z = 15')
+          subplot(222), imagesc(vel(:,:,15)), axis equal off
+          title('Reconstructed plane, z = 15')    
+          subplot(223)
+          hsurfaces = slice(x,y,z,vel0,[xmin,100,xmax],ymax,zmin);
+          set(hsurfaces,'FaceColor','interp','EdgeColor','none')
+          hcont = contourslice(x,y,z,vel0,[xmin,100,xmax],ymax,zmin);
+          set(hcont,'EdgeColor',[.7,.7,.7],'LineWidth',.5)
+          view(3), daspect([2,2,1]), axis tight
+          title('Actual data compared with...')
+          subplot(224)
+          hsurfaces = slice(x,y,z,vel,[xmin,100,xmax],ymax,zmin);
+          set(hsurfaces,'FaceColor','interp','EdgeColor','none')
+          hcont = contourslice(x,y,z,vel,[xmin,100,xmax],ymax,zmin);
+          set(hcont,'EdgeColor',[.7,.7,.7],'LineWidth',.5)
+          view(3), daspect([2,2,1]), axis tight
+          title('... reconstructed data')
 end
 
 %% DCTN
@@ -596,6 +642,7 @@ function Ims = findLedValues(Params, Ims)
     % Iterate until the error between consecutive luminance value maps are
     % decreased a certain threshold, decided as 100.
     while sum(sum((pu_encode(ledLumNew) - pu_encode(ledLumOld)).^2)) > 10
+        sum(sum(((ledLumNew) - (ledLumOld)).^2))
         scaleIt = Ims.targetLumSm./ledLumNew;
         
         % Scale the values and clip values under 0 and above MAX

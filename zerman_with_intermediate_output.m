@@ -2,8 +2,8 @@ clear all
 addpath(genpath('D:\sidorchuk\YandexDisk\work\ld\HDR_Toolbox-master\source_code\'))
 addpath(genpath('D:\sidorchuk\YandexDisk\work\ld\dviplusimage-master'));
 hdr_filename = 'D:\sidorchuk\YandexDisk\work\ld\float_interface\Bottles_Small.hdr';
-tif_filename = 'D:\sidorchuk\YandexDisk\work\ld\float_interface\0-20.jpg.tif';
-outFolder = 'D:\sidorchuk\YandexDisk\work\ld\float_interface\';
+tif_filename = 'D:\sidorchuk\YandexDisk\work\ld\contrast_metrics\test_imgs\1.tif';
+outFolder = 'D:\sidorchuk\YandexDisk\work\ld\matlab_python_compare\1\';
 
 Params.outFolder = outFolder;
 Params.fileFolderName = hdr_filename;
@@ -57,17 +57,19 @@ for imNo = Params.fileIndices
     %% Find desired backlight
     Ims = desiredBacklight(Params, Ims);
 
-    %% Find LED values
-    Ims = findLedValues(Params, Ims);
+    for fixIterNum = 10:10:150
+        %% Find LED values
+        Ims = findLedValues(Params, Ims, fixIterNum);
+        %% Finding LCD values
+        % After LED values and backlight illumination caused by LEDs have been
+        % found, calculate and set LCD values for DVI Plus image.
+        Ims = findLcdValues(Params, Ims);
 
-    %% Finding LCD values
-    % After LED values and backlight illumination caused by LEDs have been
-    % found, calculate and set LCD values for DVI Plus image.
-    Ims = findLcdValues(Params, Ims);
-    
-    writeLcd2tiff(Ims.lcdLinear, Params.outFolder, Ims.fileName);
-    
-    writeLed2csv(Ims.ledVals, Params.outFolder, Ims.fileName);
+        filename = strcat(Ims.fileName,'_iters',num2str(fixIterNum));
+        writeLcd2tiff(Ims.lcdLinear, Params.outFolder, filename);
+        writeLed2csv(Ims.ledVals, Params.outFolder, filename);
+        fixIterNum
+    end
 
     % Find the reconstructed HDR image
     [dvipHdr, ledLum3d] = dviplus2hdrim(round(255*Ims.ledVals)',...
@@ -377,6 +379,8 @@ end
 
 function y = inpaintn(x,n,y0,m)
 
+    if nargin==0&&nargout==0, RunTheExample, return, end
+
     x = double(x);
     if nargin==1 || isempty(n), n = 100; end
 
@@ -448,6 +452,41 @@ function [z,s0] = InitialGuess(y,I)
         s0 = 6; % note: s = 10^s0
     end
 
+end
+
+%% Example (3-D)
+function RunTheExample
+          load wind
+          xmin = min(x(:)); xmax = max(x(:)); %#ok
+          zmin = min(z(:)); ymax = max(y(:)); %#ok
+          %-- wind velocity
+          vel0 = interp3(sqrt(u.^2+v.^2+w.^2),1,'cubic');
+          x = interp3(x,1); y = interp3(y,1); z = interp3(z,1);
+          %-- remove randomly 90% of the data
+          I = randperm(numel(vel0));
+          velNaN = vel0;
+          velNaN(I(1:round(numel(I)*.9))) = NaN;
+          %-- inpaint using INPAINTN
+          vel = inpaintn(velNaN);
+          %-- display the results
+          subplot(221), imagesc(velNaN(:,:,15)), axis equal off
+          title('Corrupt plane, z = 15')
+          subplot(222), imagesc(vel(:,:,15)), axis equal off
+          title('Reconstructed plane, z = 15')    
+          subplot(223)
+          hsurfaces = slice(x,y,z,vel0,[xmin,100,xmax],ymax,zmin);
+          set(hsurfaces,'FaceColor','interp','EdgeColor','none')
+          hcont = contourslice(x,y,z,vel0,[xmin,100,xmax],ymax,zmin);
+          set(hcont,'EdgeColor',[.7,.7,.7],'LineWidth',.5)
+          view(3), daspect([2,2,1]), axis tight
+          title('Actual data compared with...')
+          subplot(224)
+          hsurfaces = slice(x,y,z,vel,[xmin,100,xmax],ymax,zmin);
+          set(hsurfaces,'FaceColor','interp','EdgeColor','none')
+          hcont = contourslice(x,y,z,vel,[xmin,100,xmax],ymax,zmin);
+          set(hcont,'EdgeColor',[.7,.7,.7],'LineWidth',.5)
+          view(3), daspect([2,2,1]), axis tight
+          title('... reconstructed data')
 end
 
 %% DCTN
@@ -542,7 +581,7 @@ function y = idctn(y)
 
 end
 
-function Ims = findLedValues(Params, Ims)
+function Ims = findLedValues(Params, Ims, fixIterNum)
 
     %if imNo == 1
 
@@ -595,7 +634,7 @@ function Ims = findLedValues(Params, Ims)
 
     % Iterate until the error between consecutive luminance value maps are
     % decreased a certain threshold, decided as 100.
-    while sum(sum((pu_encode(ledLumNew) - pu_encode(ledLumOld)).^2)) > 10
+    while iterNum < fixIterNum %sum(sum((pu_encode(ledLumNew) - pu_encode(ledLumOld)).^2)) > 10
         scaleIt = Ims.targetLumSm./ledLumNew;
         
         % Scale the values and clip values under 0 and above MAX
@@ -607,7 +646,7 @@ function Ims = findLedValues(Params, Ims)
 %         figure; histogram(unique(ledsNew));
         iterNum = iterNum + 1;
     end
-    
+
     % Find LED values after iteration
     tempVec = findledvals(ledsNew./Params.LED_MAX_LUM, Params.ledLabelsSm);
     ledsValsNew = ceil(tempVec(:,2).*255)./255;
